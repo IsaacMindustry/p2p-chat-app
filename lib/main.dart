@@ -344,6 +344,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final _focusNode = FocusNode();
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _peerController = TextEditingController();
@@ -436,10 +437,12 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _messageController.clear();
     _scrollToBottom();
+    
   }
-
+  
   @override
   void dispose() {
+    _focusNode.dispose();
     _channel.sink.close();
     super.dispose();
   }
@@ -525,12 +528,16 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Expanded(
                   child: TextField(
+                    autofocus: true,
                     controller: _messageController,
+                    focusNode: _focusNode,
                     onSubmitted: (_) => _sendMessage(),
+                    
                     decoration: const InputDecoration(
                       hintText: 'Type a message...',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    
                     ),
                   ),
                 ),
