@@ -40,17 +40,41 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _loading = false;
 
   Future<void> _submit() async {
-    setState(() { _loading = true; _error = null; });
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // Password length validation
+    if (password.length < 6) {
+      setState(() {
+        _error = 'Password is too short. Minimum is 6 characters.';
+      });
+      return;
+    }
+    if (password.length > 20) {
+      setState(() {
+        _error = 'Password too long. Maximum is 20 characters.';
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     final endpoint = _isLogin ? '/login' : '/register';
+
     final res = await http.post(
       Uri.parse('$serverUrl$endpoint'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'username': _usernameController.text.trim(),
-        'password': _passwordController.text.trim(),
+        'username': username,
+        'password': password,
       }),
     );
+
     final body = jsonDecode(res.body);
+
     if (res.statusCode == 200) {
       if (_isLogin) {
         Navigator.pushReplacement(
@@ -95,7 +119,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 40),
                 TextField(
                   controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Username', hintText: '6-20 characters' ,border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -186,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Private Room Created'),
-          content: Text('Share this invite code with your friends:\n\n$code'),
+          content: Text('Invite code:\n\n$code'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
           ],
