@@ -35,7 +35,7 @@ class _ChatAppState extends State<ChatApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'P2P Chat',
+      title: 'DST Messenger',
       debugShowCheckedModeBanner: false,
       theme: ChatApp.themeNotifier.theme,
       home: const AuthScreen(),
