@@ -2,22 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'themes.dart';
+import 'theme_notifier.dart';
+
+
 
 const serverUrl = 'https://p2p-chat-server-b9dp.onrender.com';
 
 void main() {
-  runApp(const ChatApp());
+  runApp(ChatApp());
 }
 
-class ChatApp extends StatelessWidget {
-  const ChatApp({super.key});
+class ChatApp extends StatefulWidget {
+  ChatApp({super.key});
+
+  static final ThemeNotifier themeNotifier = ThemeNotifier();
+
+  @override
+  State<ChatApp> createState() => _ChatAppState();
+}
+
+class _ChatAppState extends State<ChatApp> {
+  @override
+  void initState() {
+    super.initState();
+
+    ChatApp.themeNotifier.addListener(() {
+      setState(() {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'P2P Chat',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
+      theme: ChatApp.themeNotifier.theme,
       home: const AuthScreen(),
     );
   }
@@ -112,20 +132,20 @@ class _AuthScreenState extends State<AuthScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('P2P Chat', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                const Text('DST Messenger', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text(_isLogin ? 'Welcome back' : 'Create an account',
+                Text(_isLogin ? 'Login' : 'Create an account',
                     style: const TextStyle(color: Colors.white54)),
                 const SizedBox(height: 40),
                 TextField(
                   controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Username', hintText: '6-20 characters' ,border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Password', hintText: '6-20 characters' ,border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 8),
                 if (_error != null)
@@ -240,7 +260,19 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text('Hello, ${widget.username}'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+
+          IconButton(
+    icon: const Icon(Icons.logout),
             onPressed: () => Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const AuthScreen()),
@@ -341,6 +373,41 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+// ─── Settings Screen ─────────────────────────────────────────────────────────────
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Settings"),
+      ),
+      body: ListView(
+        children: [
+          ListTile(
+            title: const Text("Dark Theme"),
+            onTap: () {
+              ChatApp.themeNotifier.setTheme(AppThemes.darkTheme);
+            },
+          ),
+          ListTile(
+            title: const Text("Midnight Purple"),
+            onTap: () {
+              ChatApp.themeNotifier.setTheme(AppThemes.midnightTheme);
+            },
+          ),
+          ListTile(
+            title: const Text("Light Theme"),
+            onTap: () {
+              ChatApp.themeNotifier.setTheme(AppThemes.lightTheme);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -489,7 +556,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: TextField(
                       controller: _peerController,
                       decoration: const InputDecoration(
-                        hintText: "Enter friend's username",
+                        hintText: "Enter username",
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
@@ -558,7 +625,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onSubmitted: (_) => _sendMessage(),
                     
                     decoration: const InputDecoration(
-                      hintText: 'Type a message...',
+                      hintText: 'Message...',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     
