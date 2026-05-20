@@ -187,13 +187,61 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<String> _publicRooms = [];
+  List<Map<String, dynamic>> _friends = [];
+  List<Map<String, dynamic>> _requests = [];
   final _roomController = TextEditingController();
   final _inviteController = TextEditingController();
+  final _addFriendController = TextEditingController();
+  int _tab = 0;
 
   @override
   void initState() {
     super.initState();
     _loadRooms();
+    _loadFriends();
+    _loadRequests();
+  }
+
+  Future<void> _loadFriends() async {
+    final res = await http.get(Uri.parse('$serverUrl/friends/list?token=${widget.token}'));
+    if (res.statusCode == 200) {
+      setState(() {
+        _friends = List<Map<String, dynamic>>.from(jsonDecode(res.body)['friends']);
+      });
+    }
+  }
+
+  Future<void> _loadRequests() async {
+    final res = await http.get(Uri.parse('$serverUrl/friends/requests?token=${widget.token}'));
+    if (res.statusCode == 200) {
+      setState(() {
+        _requests = List<Map<String, dynamic>>.from(jsonDecode(res.body)['requests']);
+      });
+    }
+  }
+
+  Future<void> _sendFriendRequest() async {
+    if (_addFriendController.text.trim().isEmpty) return;
+    final res = await http.post(
+      Uri.parse('$serverUrl/friends/request'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': widget.token, 'to_user': _addFriendController.text.trim()}),
+    );
+    final body = jsonDecode(res.body);
+    _addFriendController.clear();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(res.statusCode == 200 ? 'Friend request sent!' : body['detail'] ?? 'Error')),
+    );
+  }
+
+  Future<void> _respondToRequest(int id, bool accept) async {
+    await http.post(
+      Uri.parse('$serverUrl/friends/respond'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': widget.token, 'request_id': id, 'accept': accept}),
+    );
+    _loadFriends();
+    _loadRequests();
   }
 
   Future<void> _loadRooms() async {
@@ -231,148 +279,160 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => AlertDialog(
           title: const Text('Private Room Created'),
           content: Text('Invite code:\n\n$code'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
-          ],
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
       );
     }
   }
 
   void _openRoom(String room, {bool isPrivate = false, String? code}) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          username: widget.username,
-          token: widget.token,
-          room: isPrivate ? code! : room,
-          isPrivate: isPrivate,
-        ),
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => ChatScreen(
+        username: widget.username, token: widget.token,
+        room: isPrivate ? code! : room, isPrivate: isPrivate,
       ),
-    );
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Hello, ${widget.username}'),
+        title: Text('DST Messenger'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
-                ),
-              );
-            },
-          ),
-
-          IconButton(
-    icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const AuthScreen()),
-            ),
-          )
+          IconButton(icon: const Icon(Icons.settings), onPressed: () =>
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
+          IconButton(icon: const Icon(Icons.logout), onPressed: () =>
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthScreen()))),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Direct message
-            const Text('Direct Message', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatScreen(
-                    username: widget.username,
-                    token: widget.token,
-                    room: null,
-                    isPrivate: false,
-                  ),
-                ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: [
+          NavigationDestination(icon: Icon(Icons.people), label: 'Friends'),
+          NavigationDestination(icon: Icon(Icons.forum), label: 'Rooms'),
+        ],
+      ),
+      body: _tab == 0 ? _buildFriendsTab() : _buildRoomsTab(),
+    );
+  }
+
+  Widget _buildFriendsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Add friend
+          Row(children: [
+            Expanded(child: TextField(
+              controller: _addFriendController,
+              decoration: const InputDecoration(
+                hintText: 'Add friend by username',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
-              icon: const Icon(Icons.person),
-              label: const Text('Open DM'),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Public rooms
-            const Text('Public Rooms', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _roomController,
-                    decoration: const InputDecoration(
-                      hintText: 'New room name',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(onPressed: _createPublicRoom, child: const Text('Create')),
-                const SizedBox(width: 8),
-                IconButton(onPressed: _loadRooms, icon: const Icon(Icons.refresh)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ..._publicRooms.map((room) => ListTile(
-              leading: const Icon(Icons.group),
-              title: Text(room),
-              onTap: () => _openRoom(room),
             )),
+            const SizedBox(width: 8),
+            ElevatedButton(onPressed: _sendFriendRequest, child: const Text('Add')),
+          ]),
 
-            const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-            // Private rooms
-            const Text('Private Rooms', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          // Pending requests
+          if (_requests.isNotEmpty) ...[
+            const Text('Pending Requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _createPrivateRoom,
-                  icon: const Icon(Icons.lock),
-                  label: const Text('Create Private Room'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _inviteController,
-                    decoration: const InputDecoration(
-                      hintText: 'Enter invite code',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_inviteController.text.trim().isEmpty) return;
-                    _openRoom('', isPrivate: true, code: _inviteController.text.trim());
-                  },
-                  child: const Text('Join'),
-                ),
-              ],
-            ),
+            ..._requests.map((r) => ListTile(
+              leading: const Icon(Icons.person_add),
+              title: Text(r['from_user']),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(icon: const Icon(Icons.check, color: Colors.green),
+                  onPressed: () => _respondToRequest(r['id'], true)),
+                IconButton(icon: const Icon(Icons.close, color: Colors.red),
+                  onPressed: () => _respondToRequest(r['id'], false)),
+              ]),
+            )),
+            const SizedBox(height: 16),
           ],
-        ),
+
+          // Friends list
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('Friends', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            IconButton(onPressed: _loadFriends, icon: const Icon(Icons.refresh)),
+          ]),
+          const SizedBox(height: 8),
+          if (_friends.isEmpty)
+            const Text('No friends yet — add someone above!', style: TextStyle(color: Colors.white38)),
+          ..._friends.map((f) => ListTile(
+            leading: CircleAvatar(child: Text(f['username'][0].toUpperCase())),
+            title: Text(f['username']),
+            subtitle: Text(f['online'] == true ? 'Online' : 'Offline',
+              style: TextStyle(color: f['online'] == true ? Colors.greenAccent : Colors.white38)),
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                username: widget.username, token: widget.token,
+                room: null, isPrivate: false, initialPeer: f['username'],
+              ),
+            )),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoomsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Public Rooms', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(
+              controller: _roomController,
+              decoration: const InputDecoration(
+                hintText: 'New room name', border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            )),
+            const SizedBox(width: 8),
+            ElevatedButton(onPressed: _createPublicRoom, child: const Text('Create')),
+            const SizedBox(width: 8),
+            IconButton(onPressed: _loadRooms, icon: const Icon(Icons.refresh)),
+          ]),
+          const SizedBox(height: 8),
+          ..._publicRooms.map((room) => ListTile(
+            leading: const Icon(Icons.group),
+            title: Text(room),
+            onTap: () => _openRoom(room),
+          )),
+          const SizedBox(height: 24),
+          const Text('Private Rooms', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(onPressed: _createPrivateRoom,
+            icon: const Icon(Icons.lock), label: const Text('Create Private Room')),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(
+              controller: _inviteController,
+              decoration: const InputDecoration(
+                hintText: 'Enter invite code', border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            )),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                if (_inviteController.text.trim().isEmpty) return;
+                _openRoom('', isPrivate: true, code: _inviteController.text.trim());
+              },
+              child: const Text('Join'),
+            ),
+          ]),
+        ],
       ),
     );
   }
@@ -428,7 +488,8 @@ class ChatScreen extends StatefulWidget {
   final String token;
   final String? room;
   final bool isPrivate;
-  const ChatScreen({super.key, required this.username, required this.token, required this.room, required this.isPrivate});
+  final String? initialPeer;
+  const ChatScreen({super.key, required this.username, required this.token, required this.room, required this.isPrivate, this.initialPeer});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -447,6 +508,10 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialPeer != null) {
+      _targetPeer = widget.initialPeer;
+      _peerController.text = widget.initialPeer!;
+    }
     _connect();
   }
 
