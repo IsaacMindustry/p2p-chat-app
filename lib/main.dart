@@ -35,7 +35,7 @@ class _ChatAppState extends State<ChatApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DST Messenger',
+      title: '-DST Messenger-',
       debugShowCheckedModeBanner: false,
       theme: ChatApp.themeNotifier.theme,
       home: const AuthScreen(),
@@ -511,6 +511,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (widget.initialPeer != null) {
       _targetPeer = widget.initialPeer;
       _peerController.text = widget.initialPeer!;
+      Future.delayed(const Duration(milliseconds: 600), () {
+        _loadHistory(widget.initialPeer!);
+      });
     }
     _connect();
   }
@@ -551,6 +554,25 @@ class _ChatScreenState extends State<ChatScreen> {
           'code': widget.room,
         }));
       });
+    }
+  }
+  Future<void> _loadHistory(String otherUser) async {
+    final res = await http.get(
+      Uri.parse('$serverUrl/messages/history?token=${widget.token}&other_user=$otherUser'),
+    );
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final history = data['messages'] as List;
+      setState(() {
+        for (final msg in history) {
+          _messages.add(ChatMessage(
+            sender: msg['from'],
+            text: msg['text'],
+            isMe: msg['from'] == widget.username,
+          ));
+        }
+      });
+      _scrollToBottom();
     }
   }
 
@@ -629,7 +651,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () => setState(() => _targetPeer = _peerController.text.trim()),
+                    onPressed: () {
+                      setState(() => _targetPeer = _peerController.text.trim());
+                      _loadHistory(_peerController.text.trim());
+                    },
                     child: const Text('Connect'),
                   ),
                 ],
